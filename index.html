@@ -1,0 +1,384 @@
+<!DOCTYPE html>
+<html lang="en" class="dark">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Looking Inside Large Language Models</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: #111827;
+            color: #e5e7eb;
+        }
+        .interactive-box {
+            border: 1px solid #374151;
+            background-color: rgba(31, 41, 55, 0.5);
+            backdrop-filter: blur(10px);
+            border-radius: 0.75rem;
+            padding: 1.5rem;
+            transition: all 0.3s ease;
+            position: relative;
+            overflow: hidden;
+        }
+        .interactive-box:hover {
+            border-color: #4f46e5;
+            box-shadow: 0 0 20px rgba(79, 70, 229, 0.3);
+        }
+        .token {
+            transition: all 0.2s ease-in-out;
+            cursor: pointer;
+        }
+        .token.active {
+            transform: scale(1.1);
+            background-color: #4f46e5 !important;
+            color: white;
+        }
+        .connector-line {
+            stroke-width: 1.5;
+            transition: opacity 0.3s ease;
+        }
+        .info-panel {
+            opacity: 0;
+            transform: translateY(20px);
+            transition: opacity 0.5s ease, transform 0.5s ease;
+            visibility: hidden;
+        }
+        .info-panel.visible {
+            opacity: 1;
+            transform: translateY(0);
+            visibility: visible;
+        }
+        .step-connector {
+            position: absolute;
+            width: 2px;
+            background: linear-gradient(to bottom, #4f46e5, #a855f7, transparent);
+            opacity: 0.7;
+        }
+        .step-connector.horizontal {
+            height: 2px;
+            width: auto;
+            background: linear-gradient(to right, #4f46e5, #a855f7, transparent);
+        }
+        .pulse-dot {
+            animation: pulse 2s infinite;
+        }
+        @keyframes pulse {
+            0%, 100% {
+                transform: scale(1);
+                opacity: 1;
+            }
+            50% {
+                transform: scale(1.5);
+                opacity: 0.5;
+            }
+        }
+        /* Glassmorphism effect for modals */
+        .modal-content {
+            background: rgba(31, 41, 55, 0.7);
+            backdrop-filter: blur(15px);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+        }
+    </style>
+</head>
+<body class="antialiased">
+    <!-- Background Gradient -->
+    <div class="absolute top-0 left-0 -z-10 h-full w-full bg-[#111827]">
+        <div class="absolute bottom-0 left-0 right-0 top-0 bg-[linear-gradient(to_right,#4f4f4f2e_1px,transparent_1px),linear-gradient(to_bottom,#4f4f4f2e_1px,transparent_1px)] bg-[size:14px_24px] [mask-image:radial-gradient(ellipse_80%_50%_at_50%_0%,#000_70%,transparent_110%)]"></div>
+        <div class="absolute inset-0 -z-10 bg-[radial-gradient(circle_500px_at_50%_200px,#3e3e72,transparent)]"></div>
+    </div>
+
+    <div class="container mx-auto px-4 py-12 md:py-20">
+        <header class="text-center mb-16">
+            <h1 class="text-4xl md:text-6xl font-bold tracking-tight text-white mb-4">
+                Looking Inside Large Language Models
+            </h1>
+            <p class="text-lg md:text-xl text-gray-400 max-w-3xl mx-auto">
+                An interactive journey into the core of the Transformer architecture that powers modern AI.
+            </p>
+        </header>
+
+        <!-- Main Interactive Flow -->
+        <main class="relative grid grid-cols-1 lg:grid-cols-12 gap-8 items-start">
+            
+            <!-- Step 1: Prompt & Tokenizer -->
+            <div id="step1" class="lg:col-span-12 interactive-box">
+                <div class="flex flex-col md:flex-row gap-8 items-start">
+                    <div class="w-full md:w-1/2">
+                        <h2 class="text-2xl font-semibold text-white mb-4">1. The Prompt & Tokenizer</h2>
+                        <p class="text-gray-400 mb-4">Everything starts with your input. The model first breaks down the text into smaller units called 'tokens' using a tokenizer.</p>
+                        <div class="space-y-4">
+                            <input id="prompt-input" type="text" value="The quick brown fox" class="w-full bg-gray-900 border border-gray-700 rounded-md px-4 py-2 text-white focus:ring-2 focus:ring-indigo-500 focus:outline-none" placeholder="Enter your text...">
+                            <button id="tokenize-btn" class="w-full md:w-auto bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-2 px-6 rounded-lg transition-transform transform hover:scale-105">
+                                Tokenize
+                            </button>
+                        </div>
+                    </div>
+                    <div id="tokenizer-output" class="w-full md:w-1/2 min-h-[100px] bg-gray-900/50 p-4 rounded-lg flex flex-wrap gap-2 items-center justify-center border border-gray-700">
+                        <!-- Tokens will be injected here -->
+                    </div>
+                </div>
+            </div>
+
+            <!-- Arrow Down -->
+            <div class="hidden lg:flex lg:col-span-12 items-center justify-center my-4">
+                 <svg xmlns="http://www.w3.org/2000/svg" class="h-10 w-10 text-indigo-400 animate-bounce" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 14l-7 7m0 0l-7-7m7 7V3" />
+                </svg>
+            </div>
+
+            <!-- Step 2: Transformer Blocks & Self-Attention -->
+            <div id="step2" class="lg:col-span-12 grid grid-cols-1 lg:grid-cols-2 gap-8">
+                <!-- Transformer Blocks -->
+                <div class="interactive-box flex flex-col items-center justify-center text-center">
+                    <h2 class="text-2xl font-semibold text-white mb-4">2. Transformer Blocks</h2>
+                    <p class="text-gray-400 mb-6">Tokens flow through a stack of Transformer Blocks. Each block processes the information to understand context.</p>
+                    <div class="space-y-2 w-4/5">
+                        <div class="bg-gray-700/50 p-3 rounded-lg border border-gray-600">Transformer Block N</div>
+                        <div class="text-gray-500">...</div>
+                        <div id="main-transformer-block" class="bg-indigo-900/50 p-3 rounded-lg border-2 border-indigo-500 shadow-lg cursor-pointer">Click to Inspect</div>
+                        <div class="text-gray-500">...</div>
+                         <div class="bg-gray-700/50 p-3 rounded-lg border border-gray-600">Transformer Block 1</div>
+                    </div>
+                </div>
+
+                <!-- Self-Attention Visualization -->
+                <div id="attention-box" class="interactive-box">
+                    <h2 class="text-2xl font-semibold text-white mb-2">3. The Magic of Self-Attention</h2>
+                    <p class="text-gray-400 mb-4">This is the key. The model weighs the importance of all other tokens for the one it's currently processing. Hover over a token below.</p>
+                    <div id="attention-visualization" class="relative w-full h-64 bg-gray-900/50 p-4 rounded-lg border border-gray-700">
+                        <svg id="attention-svg" class="absolute top-0 left-0 w-full h-full z-0"></svg>
+                        <div id="attention-tokens" class="relative z-10 flex flex-wrap gap-3 justify-center items-center h-full">
+                            <!-- Cloned tokens for attention viz -->
+                        </div>
+                    </div>
+                    <div id="attention-info" class="mt-4 text-center text-indigo-300 h-6"></div>
+                </div>
+            </div>
+            
+            <!-- Arrow Down -->
+            <div class="hidden lg:flex lg:col-span-12 items-center justify-center my-4">
+                 <svg xmlns="http://www.w3.org/2000/svg" class="h-10 w-10 text-indigo-400 animate-bounce" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 14l-7 7m0 0l-7-7m7 7V3" />
+                </svg>
+            </div>
+
+
+            <!-- Step 3: Output Generation -->
+            <div id="step3" class="lg:col-span-12 interactive-box">
+                <h2 class="text-2xl font-semibold text-white mb-4">4. Predicting the Next Token</h2>
+                <p class="text-gray-400 mb-6">After processing, the model predicts the most likely next token from its entire vocabulary based on the context it has learned.</p>
+                <div class="bg-gray-900/50 p-6 rounded-lg border border-gray-700">
+                    <div id="output-probabilities">
+                        <p class="text-gray-500 text-center">Tokenize some text to see potential outputs.</p>
+                    </div>
+                </div>
+            </div>
+
+        </main>
+    </div>
+
+    <!-- Transformer Block Modal -->
+    <div id="transformer-modal" class="fixed inset-0 bg-black/60 flex items-center justify-center p-4 z-50 hidden">
+        <div class="modal-content w-full max-w-2xl rounded-2xl p-8 shadow-2xl relative text-center">
+            <button id="close-modal" class="absolute top-4 right-4 text-gray-400 hover:text-white transition">
+                <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
+                </svg>
+            </button>
+            <h2 class="text-3xl font-bold text-white mb-4">Inside a Transformer Block</h2>
+            <p class="text-gray-400 mb-8">Each block contains two main sub-layers that work together.</p>
+
+            <div class="flex flex-col md:flex-row items-center justify-center gap-4 text-white">
+                <div class="bg-indigo-600/30 border border-indigo-500 p-6 rounded-lg w-full md:w-1/2">
+                    <h3 class="text-xl font-semibold mb-2">Self-Attention</h3>
+                    <p class="text-sm text-indigo-200">Determines the "focus" for each token by scoring the relevance of all other tokens in the sequence.</p>
+                </div>
+                <div class="text-3xl font-thin text-indigo-400">+</div>
+                <div class="bg-purple-600/30 border border-purple-500 p-6 rounded-lg w-full md:w-1/2">
+                    <h3 class="text-xl font-semibold mb-2">Feed-Forward Network</h3>
+                    <p class="text-sm text-purple-200">A standard neural network that processes the output of the attention layer, adding complexity.</p>
+                </div>
+            </div>
+            <p class="text-xs text-gray-500 mt-8">Normalization and residual connections are applied around each of these two sub-layers.</p>
+        </div>
+    </div>
+
+
+    <script>
+        document.addEventListener('DOMContentLoaded', () => {
+            const promptInput = document.getElementById('prompt-input');
+            const tokenizeBtn = document.getElementById('tokenize-btn');
+            const tokenizerOutput = document.getElementById('tokenizer-output');
+            const attentionTokensContainer = document.getElementById('attention-tokens');
+            const attentionSvg = document.getElementById('attention-svg');
+            const attentionInfo = document.getElementById('attention-info');
+            const outputProbabilities = document.getElementById('output-probabilities');
+            const mainTransformerBlock = document.getElementById('main-transformer-block');
+            const transformerModal = document.getElementById('transformer-modal');
+            const closeModalBtn = document.getElementById('close-modal');
+
+            let currentTokens = [];
+
+            const sampleVocabulary = ['jumped', 'over', 'the', 'lazy', 'dog', 'and', 'ran', 'away', 'quickly', 'happily'];
+
+            const tokenize = () => {
+                const text = promptInput.value.trim();
+                if (!text) return;
+
+                currentTokens = text.split(/\s+/).filter(Boolean);
+                
+                // Clear previous outputs
+                tokenizerOutput.innerHTML = '';
+                attentionTokensContainer.innerHTML = '';
+                attentionSvg.innerHTML = '';
+
+                // Render tokens
+                currentTokens.forEach((token, index) => {
+                    // Tokenizer output
+                    const tokenEl = document.createElement('div');
+                    tokenEl.textContent = token;
+                    tokenEl.className = 'token bg-gray-800 text-gray-300 py-1 px-3 rounded-md border border-gray-700';
+                    tokenEl.style.animation = `fadeIn 0.5s ease ${index * 0.1}s forwards`;
+                    tokenEl.style.opacity = '0';
+                    tokenizerOutput.appendChild(tokenEl);
+
+                    // Attention visualization tokens
+                    const attentionTokenEl = tokenEl.cloneNode(true);
+                    attentionTokenEl.dataset.index = index;
+                    attentionTokenEl.classList.add('p-2', 'md:p-3');
+                    attentionTokensContainer.appendChild(attentionTokenEl);
+                });
+
+                updateOutputProbabilities();
+                setupAttentionListeners();
+            };
+
+            const updateOutputProbabilities = () => {
+                outputProbabilities.innerHTML = '';
+                const lastWord = currentTokens.length > 0 ? currentTokens[currentTokens.length - 1].toLowerCase() : 'fox';
+                
+                // Simple pseudo-random logic for demonstration
+                const seed = lastWord.split('').reduce((acc, char) => acc + char.charCodeAt(0), 0);
+
+                const getNextWord = (index) => sampleVocabulary[(seed + index * 3) % sampleVocabulary.length];
+                
+                const probabilities = [
+                    { token: getNextWord(1), prob: Math.random() * 0.4 + 0.3 },
+                    { token: getNextWord(2), prob: Math.random() * 0.2 + 0.1 },
+                    { token: getNextWord(3), prob: Math.random() * 0.1 },
+                    { token: getNextWord(4), prob: Math.random() * 0.05 },
+                ].sort((a, b) => b.prob - a.prob);
+
+                probabilities.forEach(p => {
+                    const probEl = document.createElement('div');
+                    probEl.className = 'flex items-center justify-between gap-4 mb-2';
+                    const percentage = (p.prob * 100).toFixed(1);
+
+                    probEl.innerHTML = `
+                        <span class="text-lg text-indigo-300 w-1/4">${p.token}</span>
+                        <div class="w-3/4 bg-gray-700 rounded-full h-6">
+                            <div class="bg-gradient-to-r from-indigo-500 to-purple-500 h-6 rounded-full text-right pr-2 text-white text-sm flex items-center justify-end" style="width: ${percentage}%">
+                                ${percentage}%
+                            </div>
+                        </div>
+                    `;
+                    outputProbabilities.appendChild(probEl);
+                });
+            };
+
+            const setupAttentionListeners = () => {
+                const tokensInViz = attentionTokensContainer.querySelectorAll('.token');
+                tokensInViz.forEach(token => {
+                    token.addEventListener('mouseenter', handleAttentionHover);
+                    token.addEventListener('mouseleave', clearAttention);
+                });
+            };
+
+            const handleAttentionHover = (e) => {
+                const activeToken = e.target;
+                activeToken.classList.add('active');
+                const tokensInViz = Array.from(attentionTokensContainer.querySelectorAll('.token'));
+                const activeIndex = parseInt(activeToken.dataset.index);
+                
+                attentionSvg.innerHTML = ''; // Clear previous lines
+
+                const activeRect = activeToken.getBoundingClientRect();
+                const containerRect = attentionTokensContainer.getBoundingClientRect();
+                const activeCenter = {
+                    x: activeRect.left - containerRect.left + activeRect.width / 2,
+                    y: activeRect.top - containerRect.top + activeRect.height / 2
+                };
+                
+                let maxScore = 0;
+                let maxToken = '';
+
+                tokensInViz.forEach((token, index) => {
+                    if (index !== activeIndex) {
+                        const targetRect = token.getBoundingClientRect();
+                        const targetCenter = {
+                             x: targetRect.left - containerRect.left + targetRect.width / 2,
+                             y: targetRect.top - containerRect.top + targetRect.height / 2
+                        };
+                        
+                        // Fake attention score for visualization
+                        const score = Math.random();
+                        if(score > maxScore) {
+                            maxScore = score;
+                            maxToken = token.textContent;
+                        }
+
+                        const color = score > 0.7 ? '#a855f7' : (score > 0.4 ? '#6366f1' : '#4b5563');
+
+                        const line = document.createElementNS('http://www.w3.org/2000/svg', 'line');
+                        line.setAttribute('x1', activeCenter.x);
+                        line.setAttribute('y1', activeCenter.y);
+                        line.setAttribute('x2', targetCenter.x);
+                        line.setAttribute('y2', targetCenter.y);
+                        line.setAttribute('stroke', color);
+                        line.setAttribute('class', 'connector-line');
+                        line.style.opacity = score;
+                        attentionSvg.appendChild(line);
+                    }
+                });
+                
+                attentionInfo.textContent = `For "${activeToken.textContent}", the model pays most attention to "${maxToken}".`;
+            };
+
+            const clearAttention = () => {
+                attentionSvg.innerHTML = '';
+                attentionInfo.textContent = '';
+                attentionTokensContainer.querySelectorAll('.token').forEach(t => t.classList.remove('active'));
+            };
+            
+            // Modal logic
+            mainTransformerBlock.addEventListener('click', () => transformerModal.classList.remove('hidden'));
+            closeModalBtn.addEventListener('click', () => transformerModal.classList.add('hidden'));
+            transformerModal.addEventListener('click', (e) => {
+                 if (e.target === transformerModal) {
+                    transformerModal.classList.add('hidden');
+                 }
+            });
+
+
+            tokenizeBtn.addEventListener('click', tokenize);
+            // Initial call
+            tokenize();
+        });
+
+        // For the fade-in animation of tokens
+        const style = document.createElement('style');
+        style.innerHTML = `
+            @keyframes fadeIn {
+                from { opacity: 0; transform: translateY(10px); }
+                to { opacity: 1; transform: translateY(0); }
+            }
+        `;
+        document.head.appendChild(style);
+
+    </script>
+</body>
+</html>
