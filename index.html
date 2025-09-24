@@ -11,7 +11,7 @@
     <style>
         body {
             font-family: 'Inter', sans-serif;
-            background-color: #0f172a; /* Slightly lighter dark blue */
+            background-color: #0f172a;
             color: #e5e7eb;
             overflow-x: hidden;
         }
@@ -39,27 +39,28 @@
             color: white;
             box-shadow: 0 0 15px rgba(79, 70, 229, 0.5);
         }
-        .connector-line {
-            stroke-width: 1.5;
-            transition: opacity 0.3s ease;
-            stroke-dasharray: 4, 4;
-            animation: dash 1.5s linear infinite;
-        }
-        @keyframes dash {
-            to {
-                stroke-dashoffset: -16;
-            }
-        }
-        .modal-content {
-            background: rgba(31, 41, 55, 0.7);
-            backdrop-filter: blur(15px);
-            border: 1px solid rgba(255, 255, 255, 0.1);
-        }
         .flow-arrow {
             color: #4f46e5;
             font-size: 2.5rem;
             font-weight: 200;
             opacity: 0.5;
+        }
+        #details-container {
+            transition: max-height 0.7s ease-in-out, opacity 0.5s ease, margin-top 0.7s ease-in-out;
+            max-height: 0;
+            opacity: 0;
+            overflow: hidden;
+        }
+        #details-container.expanded {
+            max-height: 2000px; /* Large enough value */
+            opacity: 1;
+            margin-top: 1.5rem;
+        }
+        .expand-icon {
+            transition: transform 0.5s ease;
+        }
+        .expanded .expand-icon {
+            transform: rotate(180deg);
         }
     </style>
 </head>
@@ -69,7 +70,6 @@
         <div class="absolute bottom-0 left-0 right-0 top-0 bg-[linear-gradient(to_right,#4f4f4f2e_1px,transparent_1px),linear-gradient(to_bottom,#4f4f4f2e_1px,transparent_1px)] bg-[size:14px_24px] [mask-image:radial-gradient(ellipse_80%_50%_at_50%_0%,#000_70%,transparent_110%)]"></div>
         <div class="absolute inset-0 -z-10 bg-[radial-gradient(circle_500px_at_50%_200px,#312e81,transparent)]"></div>
     </div>
-    <svg id="connector-svg" class="absolute top-0 left-0 w-full h-full -z-10 hidden lg:block" style="pointer-events: none;"></svg>
 
     <div class="container mx-auto px-4 py-12 md:py-20">
         <header class="text-center mb-16">
@@ -81,70 +81,92 @@
             </p>
         </header>
 
-        <!-- Main Interactive Flow -->
-        <main class="relative grid grid-cols-1 lg:grid-cols-12 gap-x-8 gap-y-12 items-start">
+        <main class="max-w-4xl mx-auto">
             
-            <!-- Left Column: High-Level Overview -->
-            <div class="lg:col-span-5 flex flex-col items-center gap-6">
-                <div id="overview-box" class="interactive-box w-full">
-                    <h2 class="text-xl font-semibold text-white mb-3 text-center">LLM Text Generation</h2>
-                    <div class="flex flex-col gap-4 p-4 border border-gray-700 rounded-lg bg-gray-900/30">
-                        <!-- 1. Prompt -->
-                        <div>
-                            <label class="text-sm font-medium text-gray-400">Prompt</label>
-                            <input id="prompt-input" type="text" value="Write an email apologizing" class="w-full mt-1 bg-gray-800 border border-gray-600 rounded-md px-3 py-2 text-white focus:ring-2 focus:ring-indigo-500 focus:outline-none">
-                        </div>
-
-                        <div class="flow-arrow text-center my-[-10px]">↓</div>
-                        
-                        <!-- 2. Transformer LLM -->
-                        <div id="transformer-llm-box" class="text-center p-4 border-2 border-dashed border-indigo-700 rounded-lg bg-indigo-900/20">
-                            <h3 class="font-semibold text-indigo-300">Transformer LLM</h3>
-                            <p class="text-xs text-indigo-400">Click Visualize to see inside</p>
-                        </div>
-                        
-                        <div class="flow-arrow text-center my-[-10px]">↓</div>
-                        
-                        <!-- 3. Generation -->
-                        <div>
-                           <label class="text-sm font-medium text-gray-400">Generation</label>
-                           <div id="generation-output" class="w-full min-h-[50px] mt-1 bg-gray-800 border border-gray-600 rounded-md px-3 py-2 text-gray-300">
-                                Dear Sarah...
-                           </div>
-                        </div>
+            <!-- High-Level Overview -->
+            <div id="overview-box" class="interactive-box w-full">
+                <h2 class="text-xl font-semibold text-white mb-3 text-center">LLM Text Generation</h2>
+                <div class="flex flex-col gap-4 p-4 border border-gray-700 rounded-lg bg-gray-900/30">
+                    <!-- 1. Prompt -->
+                    <div>
+                        <label class="text-sm font-medium text-gray-400">Prompt</label>
+                        <input id="prompt-input" type="text" value="Write an email apologizing" class="w-full mt-1 bg-gray-800 border border-gray-600 rounded-md px-3 py-2 text-white focus:ring-2 focus:ring-indigo-500 focus:outline-none">
                     </div>
-                     <button id="visualize-btn" class="w-full mt-4 bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-2 px-6 rounded-lg transition-transform transform hover:scale-105">
-                        Visualize Inner Workings
-                    </button>
+
+                    <div class="flow-arrow text-center my-[-10px]">↓</div>
+                    
+                    <!-- 2. Transformer LLM (Clickable) -->
+                    <div id="transformer-llm-box" class="text-center p-4 border-2 border-dashed border-indigo-700 rounded-lg bg-indigo-900/20 cursor-pointer hover:bg-indigo-900/40 transition-colors">
+                        <div class="flex items-center justify-center gap-4">
+                             <h3 class="font-semibold text-indigo-300">Transformer LLM</h3>
+                             <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 text-indigo-400 expand-icon" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7" /></svg>
+                        </div>
+                        <p class="text-xs text-indigo-400">Click to expand / collapse details</p>
+                    </div>
+                    
+                    <div class="flow-arrow text-center my-[-10px]">↓</div>
+                    
+                    <!-- 3. Generation -->
+                    <div>
+                       <label class="text-sm font-medium text-gray-400">Generation</label>
+                       <div id="generation-output" class="w-full min-h-[50px] mt-1 bg-gray-800 border border-gray-600 rounded-md px-3 py-2 text-gray-300">
+                            Dear Sarah...
+                       </div>
+                    </div>
                 </div>
+                 <button id="visualize-btn" class="w-full mt-4 bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-2 px-6 rounded-lg transition-transform transform hover:scale-105">
+                    Visualize Inner Workings
+                </button>
             </div>
 
-            <!-- Right Column: Inside the Transformer -->
-            <div class="lg:col-span-7 flex flex-col gap-6 sticky top-8">
-                 <h2 class="text-2xl font-semibold text-white mb-0 text-center">Inside the Transformer</h2>
-                <!-- Tokenizer & Embeddings -->
-                <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
-                    <div id="tokenizer-box" class="interactive-box">
-                         <h3 class="text-xl font-semibold text-white mb-3">1. Tokenizer</h3>
-                         <div id="tokenizer-output" class="w-full min-h-[50px] bg-gray-900/50 p-2 rounded-lg flex flex-wrap gap-2 items-center justify-center border border-gray-700"></div>
-                    </div>
-                    <div id="embedding-box" class="interactive-box">
-                         <h3 class="text-xl font-semibold text-white mb-3">2. Token Embeddings</h3>
-                         <div id="embedding-output" class="w-full min-h-[50px] p-2 space-y-2"></div>
-                    </div>
+            <!-- Details Container (hidden by default) -->
+            <div id="details-container">
+                <div class="flex justify-center my-4">
+                    <div class="w-1 h-16 bg-gradient-to-b from-indigo-500/50 to-transparent"></div>
                 </div>
 
-                <!-- Self Attention -->
-                <div id="attention-box" class="interactive-box">
-                    <h3 class="text-xl font-semibold text-white mb-2 text-center">3. Self-Attention Mechanism</h3>
-                    <p class="text-gray-400 mb-4 text-center text-sm">Hover over a token to see how it "attends" to others, weighing their importance for context.</p>
-                    <div class="relative w-full h-72 bg-gray-900/50 p-4 rounded-lg border border-gray-700">
-                        <svg id="attention-svg" class="absolute top-0 left-0 w-full h-full z-0"></svg>
-                        <div id="attention-tokens" class="relative z-10 flex flex-wrap gap-3 justify-center items-center h-full">
-                           <p class="text-gray-500">Tokens will appear here.</p>
+                <div class="flex flex-col gap-6">
+                    <!-- Tokenizer -->
+                    <div id="tokenizer-box" class="interactive-box">
+                         <h3 class="text-xl font-semibold text-white mb-3">1. Tokenizer</h3>
+                         <p class="text-sm text-gray-400 mb-4">The prompt is broken down into tokens.</p>
+                         <div id="tokenizer-output" class="w-full min-h-[50px] bg-gray-900/50 p-2 rounded-lg flex flex-wrap gap-2 items-center justify-center border border-gray-700"></div>
+                    </div>
+                    
+                    <div class="flow-arrow text-center">↓</div>
+
+                    <!-- Stack of Blocks -->
+                    <div id="stack-box" class="interactive-box text-center">
+                        <h3 class="text-xl font-semibold text-white mb-3">2. Stack of Transformer Blocks</h3>
+                        <p class="text-sm text-gray-400 mb-4">Tokens flow through layers. Each block has a Self-Attention mechanism.</p>
+                        <div class="space-y-2 w-4/5 mx-auto">
+                            <div class="bg-gray-700/50 p-3 rounded-lg border border-gray-600">Transformer Block N</div>
+                            <div class="text-gray-500">...</div>
+                            <div class="bg-indigo-900/50 p-3 rounded-lg border-2 border-indigo-500 shadow-lg">A single block contains Self-Attention</div>
+                            <div class="text-gray-500">...</div>
+                            <div class="bg-gray-700/50 p-3 rounded-lg border border-gray-600">Transformer Block 1</div>
                         </div>
                     </div>
-                    <div id="attention-info" class="mt-4 text-center text-indigo-300 h-6 text-sm"></div>
+
+                    <div class="flow-arrow text-center">↓</div>
+                    
+                    <!-- LM Head & Output Probabilities -->
+                     <div id="lm-head-box" class="interactive-box">
+                         <h3 class="text-xl font-semibold text-white mb-3">3. LM Head & Output</h3>
+                         <p class="text-sm text-gray-400 mb-4">The final layer (Language Model Head) converts the processed token information into a probability score for every word in the vocabulary.</p>
+                         <div id="output-probabilities" class="bg-gray-900/50 p-4 rounded-lg border border-gray-700"></div>
+                    </div>
+
+                    <!-- Self Attention Deep Dive -->
+                    <div id="attention-box" class="interactive-box mt-6 border-t-2 border-indigo-800 pt-8">
+                        <h3 class="text-2xl font-bold text-white mb-2 text-center">Deep Dive: Self-Attention</h3>
+                        <p class="text-gray-400 mb-4 text-center text-sm">Hover a token to see how it scores the relevance of other tokens to understand context.</p>
+                        <div class="relative w-full h-72 bg-gray-900/50 p-4 rounded-lg border border-gray-700">
+                            <svg id="attention-svg" class="absolute top-0 left-0 w-full h-full z-0"></svg>
+                            <div id="attention-tokens" class="relative z-10 flex flex-wrap gap-3 justify-center items-center h-full"></div>
+                        </div>
+                        <div id="attention-info" class="mt-4 text-center text-indigo-300 h-6 text-sm"></div>
+                    </div>
                 </div>
             </div>
 
@@ -156,49 +178,21 @@
             const promptInput = document.getElementById('prompt-input');
             const visualizeBtn = document.getElementById('visualize-btn');
             const tokenizerOutput = document.getElementById('tokenizer-output');
-            const embeddingOutput = document.getElementById('embedding-output');
             const attentionTokensContainer = document.getElementById('attention-tokens');
             const attentionSvg = document.getElementById('attention-svg');
             const attentionInfo = document.getElementById('attention-info');
-            const connectorSvg = document.getElementById('connector-svg');
+            const outputProbabilities = document.getElementById('output-probabilities');
             
-            // Boxes for connectors
             const transformerLlmBox = document.getElementById('transformer-llm-box');
-            const tokenizerBox = document.getElementById('tokenizer-box');
-            const embeddingBox = document.getElementById('embedding-box');
-            const attentionBox = document.getElementById('attention-box');
+            const detailsContainer = document.getElementById('details-container');
 
             let currentTokens = [];
+            const sampleVocabulary = ['for', 'the', 'tragic', 'gardening', 'mishap', 'explain', 'how', 'it', 'happened'];
 
-            const drawConnector = (fromEl, toEl) => {
-                if (window.innerWidth < 1024 || !fromEl || !toEl) return;
-                
-                const fromRect = fromEl.getBoundingClientRect();
-                const toRect = toEl.getBoundingClientRect();
-                const svgRect = connectorSvg.getBoundingClientRect();
-
-                const startX = fromRect.right - svgRect.left;
-                const startY = fromRect.top - svgRect.top + fromRect.height / 2;
-                const endX = toRect.left - svgRect.left;
-                const endY = toRect.top - svgRect.top + toRect.height / 2;
-                
-                const midX = startX + 60;
-
-                const path = document.createElementNS('http://www.w3.org/2000/svg', 'path');
-                path.setAttribute('d', `M ${startX} ${startY} C ${midX} ${startY}, ${midX} ${endY}, ${endX} ${endY}`);
-                path.setAttribute('stroke', '#4f46e5');
-                path.setAttribute('fill', 'none');
-                path.setAttribute('class', 'connector-line');
-                connectorSvg.appendChild(path);
+            const toggleDetails = () => {
+                transformerLlmBox.classList.toggle('expanded');
+                detailsContainer.classList.toggle('expanded');
             };
-            
-            const drawAllConnectors = () => {
-                connectorSvg.innerHTML = '';
-                // From Transformer Box to all three detail boxes
-                drawConnector(transformerLlmBox, tokenizerBox);
-                drawConnector(transformerLlmBox, embeddingBox);
-                drawConnector(transformerLlmBox, attentionBox);
-            }
 
             const visualize = () => {
                 const text = promptInput.value.trim();
@@ -206,9 +200,9 @@
                 currentTokens = text.split(/\s+/).filter(Boolean);
                 
                 tokenizerOutput.innerHTML = '';
-                embeddingOutput.innerHTML = '';
                 attentionTokensContainer.innerHTML = '';
                 attentionSvg.innerHTML = '';
+                outputProbabilities.innerHTML = '';
 
                 currentTokens.forEach((token, index) => {
                     const animDelay = `${index * 0.1}s`;
@@ -220,30 +214,40 @@
                     tokenEl.style.animation = `fadeIn 0.5s ease ${animDelay} forwards`;
                     tokenEl.style.opacity = '0';
                     tokenizerOutput.appendChild(tokenEl);
-
-                    // 2. Create Embedding visualization
-                    const embeddingEl = document.createElement('div');
-                    embeddingEl.className = 'flex items-center gap-2';
-                    embeddingEl.style.animation = `fadeIn 0.5s ease ${animDelay} forwards`;
-                    embeddingEl.style.opacity = '0';
-                    let embeddingBars = `<div class="w-12 text-right text-sm text-gray-400 mr-2">${token}</div> <div class="flex-1 flex gap-px h-5 rounded overflow-hidden">`;
-                    for(let i=0; i<8; i++){
-                        const hue = (token.charCodeAt(0) * 17 + i * 29) % 360;
-                        embeddingBars += `<div class="w-full" style="background-color: hsl(${hue}, 60%, 50%)"></div>`;
-                    }
-                    embeddingBars += `</div>`;
-                    embeddingEl.innerHTML = embeddingBars;
-                    embeddingOutput.appendChild(embeddingEl);
-
-                    // 3. Create Attention visualization tokens
+                    
+                    // 2. Create Attention visualization tokens
                     const attentionTokenEl = tokenEl.cloneNode(true);
                     attentionTokenEl.dataset.index = index;
                     attentionTokenEl.classList.add('p-2', 'md:p-3');
                     attentionTokensContainer.appendChild(attentionTokenEl);
                 });
 
+                // 3. Update output probabilities
+                const lastWord = currentTokens.length > 0 ? currentTokens[currentTokens.length - 1].toLowerCase() : 'fox';
+                const seed = lastWord.split('').reduce((acc, char) => acc + char.charCodeAt(0), 0);
+                const getNextWord = (i) => sampleVocabulary[(seed + i * 3) % sampleVocabulary.length];
+                const probabilities = [
+                    { token: getNextWord(1), prob: Math.random() * 0.4 + 0.3 },
+                    { token: getNextWord(2), prob: Math.random() * 0.2 + 0.1 },
+                    { token: getNextWord(3), prob: Math.random() * 0.1 },
+                ].sort((a, b) => b.prob - a.prob);
+
+                probabilities.forEach(p => {
+                    const probEl = document.createElement('div');
+                    probEl.className = 'flex items-center justify-between gap-4 mb-2';
+                    const percentage = (p.prob * 100).toFixed(1);
+                    probEl.innerHTML = `
+                        <span class="text-lg text-indigo-300 w-1/3">${p.token}</span>
+                        <div class="w-2/3 bg-gray-700 rounded-full h-5">
+                            <div class="bg-gradient-to-r from-indigo-500 to-purple-500 h-5 rounded-full text-right pr-2 text-white text-xs flex items-center justify-end" style="width: ${percentage}%">
+                                ${percentage}%
+                            </div>
+                        </div>`;
+                    outputProbabilities.appendChild(probEl);
+                });
+
+
                 setupAttentionListeners();
-                setTimeout(drawAllConnectors, 100); 
             };
 
             const setupAttentionListeners = () => {
@@ -261,21 +265,14 @@
                 attentionSvg.innerHTML = ''; 
                 const activeRect = activeToken.getBoundingClientRect();
                 const containerRect = attentionTokensContainer.getBoundingClientRect();
-                const activeCenter = {
-                    x: activeRect.left - containerRect.left + activeRect.width / 2,
-                    y: activeRect.top - containerRect.top + activeRect.height / 2
-                };
+                const activeCenter = { x: activeRect.left - containerRect.left + activeRect.width / 2, y: activeRect.top - containerRect.top + activeRect.height / 2 };
                 
-                let maxScore = 0;
-                let maxToken = '';
+                let maxScore = 0, maxToken = '';
 
                 tokensInViz.forEach((token) => {
                     if (token !== activeToken) {
                         const targetRect = token.getBoundingClientRect();
-                        const targetCenter = {
-                             x: targetRect.left - containerRect.left + targetRect.width / 2,
-                             y: targetRect.top - containerRect.top + targetRect.height / 2
-                        };
+                        const targetCenter = { x: targetRect.left - containerRect.left + targetRect.width / 2, y: targetRect.top - containerRect.top + targetRect.height / 2 };
                         const score = Math.random();
                         if(score > maxScore) { maxScore = score; maxToken = token.textContent; }
                         
@@ -301,18 +298,10 @@
             };
             
             visualizeBtn.addEventListener('click', visualize);
+            transformerLlmBox.addEventListener('click', toggleDetails);
             
-            // Add hover effect for connectors
-            transformerLlmBox.addEventListener('mouseenter', () => {
-                [tokenizerBox, embeddingBox, attentionBox].forEach(el => el.classList.add('highlight'));
-            });
-            transformerLlmBox.addEventListener('mouseleave', () => {
-                 [tokenizerBox, embeddingBox, attentionBox].forEach(el => el.classList.remove('highlight'));
-            });
-            
-            // Initial call and setup
+            // Initial call
             visualize();
-            window.addEventListener('resize', drawAllConnectors);
         });
 
         const style = document.createElement('style');
