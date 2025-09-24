@@ -1,313 +1,277 @@
 <!DOCTYPE html>
-<html lang="en" class="dark">
+<html lang="en">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Looking Inside Large Language Models</title>
+    <title>Interactive LLM Architecture</title>
     <script src="https://cdn.tailwindcss.com"></script>
-    <link rel="preconnect" href="https://fonts.googleapis.com">
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
     <style>
         body {
             font-family: 'Inter', sans-serif;
-            background-color: #0f172a;
-            color: #e5e7eb;
-            overflow-x: hidden;
         }
-        .interactive-box {
-            border: 1px solid #334155;
-            background-color: rgba(15, 23, 42, 0.6);
-            backdrop-filter: blur(12px);
-            border-radius: 0.75rem;
-            padding: 1.5rem;
-            transition: all 0.3s ease;
-            position: relative;
+        .expandable-content {
+            max-height: 0;
             overflow: hidden;
+            transition: max-height 0.7s cubic-bezier(0.4, 0, 0.2, 1), opacity 0.5s ease-out;
+            opacity: 0;
         }
-        .interactive-box:hover, .interactive-box.highlight {
-            border-color: #4338ca;
-            box-shadow: 0 0 25px rgba(67, 56, 202, 0.5);
-        }
-        .token {
-            transition: all 0.2s ease-in-out;
-            cursor: pointer;
-        }
-        .token.active {
-            transform: scale(1.1);
-            background-color: #4f46e5 !important;
-            color: white;
-            box-shadow: 0 0 15px rgba(79, 70, 229, 0.5);
+        .expanded {
+            max-height: 1000px; /* Adjust as needed */
+            opacity: 1;
         }
         .flow-arrow {
-            color: #4f46e5;
-            font-size: 2.5rem;
-            font-weight: 200;
-            opacity: 0.5;
+            position: relative;
+            height: 2px;
+            background-color: #9ca3af;
+            transition: width 0.5s ease-in-out;
         }
-        #details-container {
-            transition: max-height 0.7s ease-in-out, opacity 0.5s ease, margin-top 0.7s ease-in-out;
-            max-height: 0;
+        .flow-arrow::after {
+            content: '';
+            position: absolute;
+            right: -1px;
+            top: -4px;
+            border-top: 5px solid transparent;
+            border-bottom: 5px solid transparent;
+            border-left: 6px solid #9ca3af;
+        }
+        .tooltip {
+            position: absolute;
+            bottom: 110%;
+            left: 50%;
+            transform: translateX(-50%);
+            background-color: #1f2937;
+            color: white;
+            padding: 8px 12px;
+            border-radius: 6px;
+            font-size: 0.875rem;
+            white-space: nowrap;
             opacity: 0;
-            overflow: hidden;
+            visibility: hidden;
+            transition: opacity 0.2s, visibility 0.2s;
+            z-index: 10;
         }
-        #details-container.expanded {
-            max-height: 2000px; /* Large enough value */
+        .has-tooltip:hover .tooltip {
             opacity: 1;
-            margin-top: 1.5rem;
+            visibility: visible;
         }
-        .expand-icon {
-            transition: transform 0.5s ease;
+        .card {
+            border: 1px solid #e5e7eb;
+            transition: all 0.3s ease;
         }
-        .expanded .expand-icon {
-            transform: rotate(180deg);
+        .card:hover {
+            box-shadow: 0 10px 15px -3px rgb(0 0 0 / 0.1), 0 4px 6px -4px rgb(0 0 0 / 0.1);
+            transform: translateY(-2px);
+        }
+        .clickable-card {
+            cursor: pointer;
+        }
+        .icon-plus, .icon-minus {
+            transition: transform 0.3s ease;
+        }
+        .expanded .icon-plus {
+            transform: rotate(45deg);
+        }
+        .expanded .icon-minus {
+            transform: rotate(0);
         }
     </style>
 </head>
-<body class="antialiased">
-    <!-- Background Gradient -->
-    <div class="absolute top-0 left-0 -z-10 h-full w-full bg-[#0f172a]">
-        <div class="absolute bottom-0 left-0 right-0 top-0 bg-[linear-gradient(to_right,#4f4f4f2e_1px,transparent_1px),linear-gradient(to_bottom,#4f4f4f2e_1px,transparent_1px)] bg-[size:14px_24px] [mask-image:radial-gradient(ellipse_80%_50%_at_50%_0%,#000_70%,transparent_110%)]"></div>
-        <div class="absolute inset-0 -z-10 bg-[radial-gradient(circle_500px_at_50%_200px,#312e81,transparent)]"></div>
-    </div>
+<body class="bg-gray-50 text-gray-800">
 
-    <div class="container mx-auto px-4 py-12 md:py-20">
-        <header class="text-center mb-16">
-            <h1 class="text-4xl md:text-6xl font-bold tracking-tight text-white mb-4">
-                An Overview of Transformer Models
-            </h1>
-            <p class="text-lg md:text-xl text-gray-400 max-w-3xl mx-auto">
-                An interactive journey from a simple prompt to complex internal workings.
-            </p>
-        </header>
+    <div class="flex flex-col lg:flex-row min-h-screen">
+        <!-- Main Content -->
+        <main class="flex-1 p-4 md:p-8 overflow-y-auto">
+            <div class="max-w-5xl mx-auto">
+                <header class="text-center mb-10">
+                    <h1 class="text-3xl md:text-4xl font-bold text-gray-900">Deconstructing a Large Language Model</h1>
+                    <p class="mt-2 text-lg text-gray-600">Click on the components to see what's inside.</p>
+                </header>
 
-        <main class="max-w-4xl mx-auto">
-            
-            <!-- High-Level Overview -->
-            <div id="overview-box" class="interactive-box w-full">
-                <h2 class="text-xl font-semibold text-white mb-3 text-center">LLM Text Generation</h2>
-                <div class="flex flex-col gap-4 p-4 border border-gray-700 rounded-lg bg-gray-900/30">
-                    <!-- 1. Prompt -->
-                    <div>
-                        <label class="text-sm font-medium text-gray-400">Prompt</label>
-                        <input id="prompt-input" type="text" value="Write an email apologizing" class="w-full mt-1 bg-gray-800 border border-gray-600 rounded-md px-3 py-2 text-white focus:ring-2 focus:ring-indigo-500 focus:outline-none">
+                <div id="llm-diagram" class="flex flex-col items-center space-y-4">
+                    <!-- Prompt -->
+                    <div id="prompt" class="has-tooltip relative bg-white p-6 rounded-xl shadow-md card w-full max-w-md text-center">
+                        <h2 class="font-semibold text-lg text-gray-700">Prompt</h2>
+                        <p class="text-gray-500 mt-1">"Explain how an LLM works"</p>
+                        <div class="tooltip">The initial input or query given to the model by a user.</div>
                     </div>
 
-                    <div class="flow-arrow text-center my-[-10px]">↓</div>
-                    
-                    <!-- 2. Transformer LLM (Clickable) -->
-                    <div id="transformer-llm-box" class="text-center p-4 border-2 border-dashed border-indigo-700 rounded-lg bg-indigo-900/20 cursor-pointer hover:bg-indigo-900/40 transition-colors">
-                        <div class="flex items-center justify-center gap-4">
-                             <h3 class="font-semibold text-indigo-300">Transformer LLM</h3>
-                             <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 text-indigo-400 expand-icon" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7" /></svg>
+                    <div class="w-16 h-8 flex justify-center items-center">
+                        <div class="w-full flow-arrow"></div>
+                    </div>
+
+                    <!-- Transformer LLM (Collapsed) -->
+                    <div id="transformer-llm" class="has-tooltip relative bg-blue-500 text-white p-6 rounded-xl shadow-lg card clickable-card w-full max-w-lg text-center" onclick="toggleExpand('transformer-llm-content', this)">
+                         <div class="flex items-center justify-center">
+                            <h2 class="font-bold text-xl">Transformer LLM</h2>
+                            <svg class="icon-plus w-6 h-6 ml-2" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"></path></svg>
+                         </div>
+                        <div class="tooltip">The core of the model, responsible for understanding and generating text.</div>
+                    </div>
+
+                    <!-- Transformer LLM Internals (Hidden) -->
+                    <div id="transformer-llm-content" class="expandable-content w-full max-w-2xl">
+                        <div class="bg-blue-50 border border-blue-200 p-6 rounded-2xl flex flex-col items-center space-y-4">
+                            <!-- Tokenizer -->
+                            <div id="tokenizer" class="has-tooltip relative bg-white p-4 rounded-lg shadow-sm card w-full max-w-md text-center border-red-300">
+                                <h3 class="font-semibold text-blue-800">Tokenizer</h3>
+                                <p class="text-gray-600 mt-1 break-words"><span class="text-red-500 font-mono">"Explain"</span> <span class="text-red-500 font-mono">"how"</span> <span class="text-red-500 font-mono">"an"</span> <span class="text-red-500 font-mono">"L"</span><span class="text-red-500 font-mono">"L"</span><span class="text-red-500 font-mono">"M"</span> <span class="text-red-500 font-mono">"works"</span></p>
+                                <div class="tooltip">Breaks down the input text into smaller units called tokens.</div>
+                            </div>
+                             <div class="w-12 h-6 flex justify-center items-center">
+                                <div class="w-full flow-arrow rotate-90"></div>
+                            </div>
+                            <!-- Stack of Transformer Blocks -->
+                            <div id="transformer-stack" class="bg-blue-100 p-4 rounded-xl w-full">
+                                <h3 class="font-semibold text-blue-900 text-center mb-3">Stack of Transformer Blocks</h3>
+                                <div class="space-y-3">
+                                    <!-- Block 1 -->
+                                    <div class="has-tooltip relative bg-white p-4 rounded-lg shadow-sm card clickable-card" onclick="toggleExpand('transformer-block-1-content', this)">
+                                        <div class="flex justify-between items-center">
+                                            <span class="font-medium text-blue-700">Transformer Block 1</span>
+                                            <svg class="icon-plus w-5 h-5 text-blue-500" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"></path></svg>
+                                        </div>
+                                        <div class="tooltip">A single processing unit. LLMs stack many of these to learn complex patterns.</div>
+                                    </div>
+                                    <div id="transformer-block-1-content" class="expandable-content pl-4">
+                                        <div class="border-l-2 border-blue-300 pl-4 py-2 space-y-3">
+                                            <div class="has-tooltip relative bg-blue-50 p-3 rounded-md clickable-card" onclick="event.stopPropagation(); toggleExpand('self-attention-content', this)">
+                                                <div class="flex justify-between items-center">
+                                                    <span class="font-medium text-blue-600">Self-Attention</span>
+                                                     <svg class="icon-plus w-4 h-4 text-blue-400" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"></path></svg>
+                                                </div>
+                                                <div class="tooltip">Lets tokens "talk" to each other to understand context and relationships.</div>
+                                            </div>
+                                            <!-- Self-Attention Content -->
+                                            <div id="self-attention-content" class="expandable-content pl-4">
+                                                <div class="border-l-2 border-blue-200 pl-4 space-y-2 text-sm text-gray-600">
+                                                    <div class="has-tooltip relative p-2 bg-white rounded">Attention Heads <div class="tooltip">Multiple attention mechanisms working in parallel to focus on different parts of the text.</div></div>
+                                                    <div class="has-tooltip relative p-2 bg-white rounded">Relevance Scoring <div class="tooltip">Calculates how important each token is to every other token.</div></div>
+                                                    <div class="has-tooltip relative p-2 bg-white rounded">Combining Information <div class="tooltip">Combines token information based on their relevance scores.</div></div>
+                                                </div>
+                                            </div>
+                                            <div class="has-tooltip relative bg-blue-50 p-3 rounded-md">
+                                                <span class="font-medium text-blue-600">Feedforward Network</span>
+                                                <div class="tooltip">A standard neural network that further processes the information from the attention step.</div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                     <!-- Dummy Blocks -->
+                                    <div class="text-center text-blue-400 font-bold tracking-widest">...</div>
+                                    <div class="has-tooltip relative bg-white p-4 rounded-lg shadow-sm card">
+                                        <span class="font-medium text-blue-700">Transformer Block N</span>
+                                        <div class="tooltip">The final processing block in the stack.</div>
+                                    </div>
+                                </div>
+                            </div>
+                             <div class="w-12 h-6 flex justify-center items-center">
+                                <div class="w-full flow-arrow rotate-90"></div>
+                            </div>
+                            <!-- LM Head -->
+                            <div id="lm-head" class="has-tooltip relative bg-white p-4 rounded-lg shadow-sm card w-full max-w-md text-center">
+                                <h3 class="font-semibold text-blue-800">LM Head</h3>
+                                <p class="text-gray-600 mt-1">Predicts the next token</p>
+                                <div class="tooltip">Takes the final output and converts it into probabilities for all possible next tokens.</div>
+                            </div>
                         </div>
-                        <p class="text-xs text-indigo-400">Click to expand / collapse details</p>
                     </div>
-                    
-                    <div class="flow-arrow text-center my-[-10px]">↓</div>
-                    
-                    <!-- 3. Generation -->
-                    <div>
-                       <label class="text-sm font-medium text-gray-400">Generation</label>
-                       <div id="generation-output" class="w-full min-h-[50px] mt-1 bg-gray-800 border border-gray-600 rounded-md px-3 py-2 text-gray-300">
-                            Dear Sarah...
-                       </div>
+
+                    <div class="w-16 h-8 flex justify-center items-center">
+                        <div class="w-full flow-arrow"></div>
+                    </div>
+
+                    <!-- Generated Output -->
+                    <div id="output" class="has-tooltip relative bg-white p-6 rounded-xl shadow-md card w-full max-w-md text-center">
+                        <h2 class="font-semibold text-lg text-gray-700">Generated Output</h2>
+                         <p class="text-gray-500 mt-1">"An LLM works by processing input text through..."</p>
+                        <div class="tooltip">The final text generated by the model in response to the prompt.</div>
                     </div>
                 </div>
-                 <button id="visualize-btn" class="w-full mt-4 bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-2 px-6 rounded-lg transition-transform transform hover:scale-105">
-                    Visualize Inner Workings
+            </div>
+        </main>
+
+        <!-- Side Panel Glossary -->
+        <aside id="glossary-panel" class="w-full lg:w-80 bg-white border-l border-gray-200 p-6 transform transition-transform lg:translate-x-0 fixed lg:relative h-screen right-0 top-0 translate-x-full z-20 overflow-y-auto">
+            <div class="flex justify-between items-center mb-6">
+                <h2 class="text-2xl font-bold">Glossary</h2>
+                <button onclick="toggleGlossary()" class="lg:hidden text-gray-500 hover:text-gray-800">
+                    <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path></svg>
                 </button>
             </div>
-
-            <!-- Details Container (hidden by default) -->
-            <div id="details-container">
-                <div class="flex justify-center my-4">
-                    <div class="w-1 h-16 bg-gradient-to-b from-indigo-500/50 to-transparent"></div>
+            <div class="space-y-6 text-sm">
+                <div>
+                    <h3 class="font-semibold text-gray-900">Transformer</h3>
+                    <p class="mt-1 text-gray-600">A neural network architecture that excels at handling sequential data like text. It's the foundation of models like GPT and BERT.</p>
                 </div>
-
-                <div class="flex flex-col gap-6">
-                    <!-- Tokenizer -->
-                    <div id="tokenizer-box" class="interactive-box">
-                         <h3 class="text-xl font-semibold text-white mb-3">1. Tokenizer</h3>
-                         <p class="text-sm text-gray-400 mb-4">The prompt is broken down into tokens.</p>
-                         <div id="tokenizer-output" class="w-full min-h-[50px] bg-gray-900/50 p-2 rounded-lg flex flex-wrap gap-2 items-center justify-center border border-gray-700"></div>
-                    </div>
-                    
-                    <div class="flow-arrow text-center">↓</div>
-
-                    <!-- Stack of Blocks -->
-                    <div id="stack-box" class="interactive-box text-center">
-                        <h3 class="text-xl font-semibold text-white mb-3">2. Stack of Transformer Blocks</h3>
-                        <p class="text-sm text-gray-400 mb-4">Tokens flow through layers. Each block has a Self-Attention mechanism.</p>
-                        <div class="space-y-2 w-4/5 mx-auto">
-                            <div class="bg-gray-700/50 p-3 rounded-lg border border-gray-600">Transformer Block N</div>
-                            <div class="text-gray-500">...</div>
-                            <div class="bg-indigo-900/50 p-3 rounded-lg border-2 border-indigo-500 shadow-lg">A single block contains Self-Attention</div>
-                            <div class="text-gray-500">...</div>
-                            <div class="bg-gray-700/50 p-3 rounded-lg border border-gray-600">Transformer Block 1</div>
-                        </div>
-                    </div>
-
-                    <div class="flow-arrow text-center">↓</div>
-                    
-                    <!-- LM Head & Output Probabilities -->
-                     <div id="lm-head-box" class="interactive-box">
-                         <h3 class="text-xl font-semibold text-white mb-3">3. LM Head & Output</h3>
-                         <p class="text-sm text-gray-400 mb-4">The final layer (Language Model Head) converts the processed token information into a probability score for every word in the vocabulary.</p>
-                         <div id="output-probabilities" class="bg-gray-900/50 p-4 rounded-lg border border-gray-700"></div>
-                    </div>
-
-                    <!-- Self Attention Deep Dive -->
-                    <div id="attention-box" class="interactive-box mt-6 border-t-2 border-indigo-800 pt-8">
-                        <h3 class="text-2xl font-bold text-white mb-2 text-center">Deep Dive: Self-Attention</h3>
-                        <p class="text-gray-400 mb-4 text-center text-sm">Hover a token to see how it scores the relevance of other tokens to understand context.</p>
-                        <div class="relative w-full h-72 bg-gray-900/50 p-4 rounded-lg border border-gray-700">
-                            <svg id="attention-svg" class="absolute top-0 left-0 w-full h-full z-0"></svg>
-                            <div id="attention-tokens" class="relative z-10 flex flex-wrap gap-3 justify-center items-center h-full"></div>
-                        </div>
-                        <div id="attention-info" class="mt-4 text-center text-indigo-300 h-6 text-sm"></div>
-                    </div>
+                <div>
+                    <h3 class="font-semibold text-gray-900">Tokenization</h3>
+                    <p class="mt-1 text-gray-600">The process of breaking down a piece of text into smaller units called "tokens." These can be words, parts of words, or characters.</p>
+                </div>
+                <div>
+                    <h3 class="font-semibold text-gray-900">Embedding</h3>
+                    <p class="mt-1 text-gray-600">Converting tokens into numerical vectors. This allows the model to work with the mathematical representation of words and their meanings.</p>
+                </div>
+                <div>
+                    <h3 class="font-semibold text-gray-900">Self-Attention</h3>
+                    <p class="mt-1 text-gray-600">A mechanism that allows the model to weigh the importance of different tokens in the input text when processing a specific token. It helps in understanding context.</p>
+                </div>
+                <div>
+                    <h3 class="font-semibold text-gray-900">Feedforward Network</h3>
+                    <p class="mt-1 text-gray-600">A component within each Transformer block that processes the output from the self-attention layer, allowing for more complex computations.</p>
+                </div>
+                 <div>
+                    <h3 class="font-semibold text-gray-900">LM Head (Language Model Head)</h3>
+                    <p class="mt-1 text-gray-600">The final layer of the model that takes the processed information and generates a probability distribution over the entire vocabulary to predict the most likely next token.</p>
                 </div>
             </div>
-
-        </main>
+        </aside>
     </div>
 
+    <!-- Glossary Toggle Button for Mobile -->
+    <button onclick="toggleGlossary()" class="lg:hidden fixed bottom-4 right-4 bg-blue-500 text-white p-3 rounded-full shadow-lg z-30">
+        <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h16M4 18h7"></path></svg>
+    </button>
+
+
     <script>
-        document.addEventListener('DOMContentLoaded', () => {
-            const promptInput = document.getElementById('prompt-input');
-            const visualizeBtn = document.getElementById('visualize-btn');
-            const tokenizerOutput = document.getElementById('tokenizer-output');
-            const attentionTokensContainer = document.getElementById('attention-tokens');
-            const attentionSvg = document.getElementById('attention-svg');
-            const attentionInfo = document.getElementById('attention-info');
-            const outputProbabilities = document.getElementById('output-probabilities');
+        function toggleExpand(contentId, element) {
+            const content = document.getElementById(contentId);
+            const isExpanded = content.classList.contains('expanded');
             
-            const transformerLlmBox = document.getElementById('transformer-llm-box');
-            const detailsContainer = document.getElementById('details-container');
-
-            let currentTokens = [];
-            const sampleVocabulary = ['for', 'the', 'tragic', 'gardening', 'mishap', 'explain', 'how', 'it', 'happened'];
-
-            const toggleDetails = () => {
-                transformerLlmBox.classList.toggle('expanded');
-                detailsContainer.classList.toggle('expanded');
-            };
-
-            const visualize = () => {
-                const text = promptInput.value.trim();
-                if (!text) return;
-                currentTokens = text.split(/\s+/).filter(Boolean);
-                
-                tokenizerOutput.innerHTML = '';
-                attentionTokensContainer.innerHTML = '';
-                attentionSvg.innerHTML = '';
-                outputProbabilities.innerHTML = '';
-
-                currentTokens.forEach((token, index) => {
-                    const animDelay = `${index * 0.1}s`;
-
-                    // 1. Create Tokenizer output
-                    const tokenEl = document.createElement('div');
-                    tokenEl.textContent = token;
-                    tokenEl.className = 'token bg-gray-800 text-gray-300 py-1 px-3 rounded-md border border-gray-700';
-                    tokenEl.style.animation = `fadeIn 0.5s ease ${animDelay} forwards`;
-                    tokenEl.style.opacity = '0';
-                    tokenizerOutput.appendChild(tokenEl);
-                    
-                    // 2. Create Attention visualization tokens
-                    const attentionTokenEl = tokenEl.cloneNode(true);
-                    attentionTokenEl.dataset.index = index;
-                    attentionTokenEl.classList.add('p-2', 'md:p-3');
-                    attentionTokensContainer.appendChild(attentionTokenEl);
-                });
-
-                // 3. Update output probabilities
-                const lastWord = currentTokens.length > 0 ? currentTokens[currentTokens.length - 1].toLowerCase() : 'fox';
-                const seed = lastWord.split('').reduce((acc, char) => acc + char.charCodeAt(0), 0);
-                const getNextWord = (i) => sampleVocabulary[(seed + i * 3) % sampleVocabulary.length];
-                const probabilities = [
-                    { token: getNextWord(1), prob: Math.random() * 0.4 + 0.3 },
-                    { token: getNextWord(2), prob: Math.random() * 0.2 + 0.1 },
-                    { token: getNextWord(3), prob: Math.random() * 0.1 },
-                ].sort((a, b) => b.prob - a.prob);
-
-                probabilities.forEach(p => {
-                    const probEl = document.createElement('div');
-                    probEl.className = 'flex items-center justify-between gap-4 mb-2';
-                    const percentage = (p.prob * 100).toFixed(1);
-                    probEl.innerHTML = `
-                        <span class="text-lg text-indigo-300 w-1/3">${p.token}</span>
-                        <div class="w-2/3 bg-gray-700 rounded-full h-5">
-                            <div class="bg-gradient-to-r from-indigo-500 to-purple-500 h-5 rounded-full text-right pr-2 text-white text-xs flex items-center justify-end" style="width: ${percentage}%">
-                                ${percentage}%
-                            </div>
-                        </div>`;
-                    outputProbabilities.appendChild(probEl);
-                });
-
-
-                setupAttentionListeners();
-            };
-
-            const setupAttentionListeners = () => {
-                attentionTokensContainer.querySelectorAll('.token').forEach(token => {
-                    token.addEventListener('mouseenter', handleAttentionHover);
-                    token.addEventListener('mouseleave', clearAttention);
-                });
-            };
-
-            const handleAttentionHover = (e) => {
-                const activeToken = e.target;
-                activeToken.classList.add('active');
-                const tokensInViz = Array.from(attentionTokensContainer.querySelectorAll('.token'));
-                
-                attentionSvg.innerHTML = ''; 
-                const activeRect = activeToken.getBoundingClientRect();
-                const containerRect = attentionTokensContainer.getBoundingClientRect();
-                const activeCenter = { x: activeRect.left - containerRect.left + activeRect.width / 2, y: activeRect.top - containerRect.top + activeRect.height / 2 };
-                
-                let maxScore = 0, maxToken = '';
-
-                tokensInViz.forEach((token) => {
-                    if (token !== activeToken) {
-                        const targetRect = token.getBoundingClientRect();
-                        const targetCenter = { x: targetRect.left - containerRect.left + targetRect.width / 2, y: targetRect.top - containerRect.top + targetRect.height / 2 };
-                        const score = Math.random();
-                        if(score > maxScore) { maxScore = score; maxToken = token.textContent; }
-                        
-                        const color = score > 0.7 ? '#a855f7' : (score > 0.4 ? '#6366f1' : '#4b5563');
-                        const line = document.createElementNS('http://www.w3.org/2000/svg', 'line');
-                        line.setAttribute('x1', activeCenter.x);
-                        line.setAttribute('y1', activeCenter.y);
-                        line.setAttribute('x2', targetCenter.x);
-                        line.setAttribute('y2', targetCenter.y);
-                        line.setAttribute('stroke', color);
-                        line.setAttribute('stroke-width', `${score * 2.5 + 1}px`);
-                        line.style.opacity = score * 0.8 + 0.2;
-                        attentionSvg.appendChild(line);
+            // Close any other expanded sections at the same level
+            if (!isExpanded) {
+                const parent = content.parentElement;
+                const siblings = Array.from(parent.children).filter(child => child.classList.contains('expandable-content'));
+                siblings.forEach(sibling => {
+                    if (sibling.id !== contentId && sibling.classList.contains('expanded')) {
+                        sibling.classList.remove('expanded');
+                        // Also update the icon on the corresponding clickable element
+                        const clickableSibling = sibling.previousElementSibling;
+                        if(clickableSibling && clickableSibling.classList.contains('clickable-card')) {
+                             clickableSibling.classList.remove('expanded');
+                        }
                     }
                 });
-                attentionInfo.textContent = `For "${activeToken.textContent}", the model pays most attention to "${maxToken}".`;
-            };
+                 // Special handling for nested self-attention
+                if (element.parentElement.id === 'transformer-block-1-content') {
+                     const attentionContent = document.getElementById('self-attention-content');
+                     if(attentionContent.classList.contains('expanded')) {
+                         attentionContent.classList.remove('expanded');
+                         attentionContent.previousElementSibling.classList.remove('expanded');
+                     }
+                }
+            }
 
-            const clearAttention = () => {
-                attentionSvg.innerHTML = '';
-                attentionInfo.textContent = '';
-                attentionTokensContainer.querySelectorAll('.token').forEach(t => t.classList.remove('active'));
-            };
-            
-            visualizeBtn.addEventListener('click', visualize);
-            transformerLlmBox.addEventListener('click', toggleDetails);
-            
-            // Initial call
-            visualize();
-        });
+            content.classList.toggle('expanded');
+            if (element) {
+                element.classList.toggle('expanded');
+            }
+        }
 
-        const style = document.createElement('style');
-        style.innerHTML = `@keyframes fadeIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }`;
-        document.head.appendChild(style);
+        function toggleGlossary() {
+            const panel = document.getElementById('glossary-panel');
+            panel.classList.toggle('translate-x-full');
+        }
     </script>
 </body>
 </html>
-
